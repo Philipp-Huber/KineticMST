@@ -9,6 +9,8 @@ import java.util.LinkedList;
 
 import javax.swing.JComponent;
 
+import util.UnionFind;
+
 public class GraphDrawing extends JComponent{
 	
 	private int size;
@@ -164,7 +166,7 @@ public class GraphDrawing extends JComponent{
 		
 		this.edgesVisitedGreedy = 0;		
 		//union-find
-		int[] parents = initializeUnionFind();
+		UnionFind parents = new UnionFind(this.size);
 		//output
 		LinkedList<Edge> MST = new LinkedList<Edge>();
 		
@@ -175,13 +177,13 @@ public class GraphDrawing extends JComponent{
 			Edge nextEdge = edgeList.removeFirst();
 			this.edgesVisitedGreedy += 1;
 			
-			int v = getRepresentative(parents, nextEdge.getSrc());
-			int w = getRepresentative(parents, nextEdge.getDest());
+			int v = nextEdge.getSrc();
+			int w = nextEdge.getDest();
 			
 			//Assert nextEdge doesn't close cycle AND assert nextEdge is not crossing if specified by checkForCrossings 
-			if((v != w) && (!checkForCrossings || !isCrossing(nextEdge, MST))) {
+			if(!parents.inSameSet(v, w) && (!checkForCrossings || !isCrossing(nextEdge, MST))) {
 				MST.add(nextEdge);
-				union(parents, v, w);
+				parents.union(v, w);
 			}
 			if (MST.size() >= this.size - 1) {
 				success = true;
@@ -247,8 +249,7 @@ public class GraphDrawing extends JComponent{
 			currentCandidates.add(edge);
 		}
 		
-		//union-find
-		int[] parents = initializeUnionFind();
+		UnionFind parents = new UnionFind(this.size);
 		
 		LinkedList<Edge> MST = new LinkedList<Edge>();
 		LinkedList<Edge> deletedEdges = new LinkedList<Edge>();
@@ -282,7 +283,7 @@ public class GraphDrawing extends JComponent{
 	 * @throws RuntimeException
 	 * @return Locally minimal spanning tree for this recursive branch or NULL if no viable solution exists
 	 */
-	private LinkedList<Edge> recursiveCallMST(LinkedList<Edge> MST, LinkedList<Edge> currentCandidates, int[] unionFind, LinkedList<Edge> deletedEdges, double lowerBound, boolean BABoptimized) {
+	private LinkedList<Edge> recursiveCallMST(LinkedList<Edge> MST, LinkedList<Edge> currentCandidates, UnionFind unionFind, LinkedList<Edge> deletedEdges, double lowerBound, boolean BABoptimized) {
 		//if ST is complete
 		if(MST.size() == this.size-1) {
 			return MST;
@@ -322,10 +323,10 @@ public class GraphDrawing extends JComponent{
 		
 		Edge nextEdge = currentCandidates.removeFirst();
 		
-		int v = getRepresentative(unionFind, nextEdge.getSrc());
-		int w = getRepresentative(unionFind, nextEdge.getDest());
+		int v = nextEdge.getSrc();
+		int w = nextEdge.getDest();
 		
-		if(v != w) {
+		if(!unionFind.inSameSet(v, w)) {
 			if(isCrossing(nextEdge, MST)) {
 				LinkedList<Edge> ST1 = new LinkedList<Edge>();
 				LinkedList<Edge> currentMST = new LinkedList<Edge>();
@@ -356,16 +357,13 @@ public class GraphDrawing extends JComponent{
 				deleted.addAll(nextEdge.crossingEdges(currentMST));
 				
 				//recalculate unionFind for alternative MST
-				int[] unionFind2 = new int[this.size];
-				for (int i = 0; i < unionFind2.length; i++) {
-					unionFind2[i] = -1;
-				}
+				UnionFind unionFind2 = new UnionFind(this.size);
 
 				for (Edge edge : ST2) {
-					v = getRepresentative(unionFind2, edge.getSrc());
-					w = getRepresentative(unionFind2, edge.getDest());
-					if(v != w) {
-						union(unionFind2, v, w);
+					v = edge.getSrc();
+					w = edge.getDest();
+					if(!unionFind2.inSameSet(v, w)) {
+						unionFind2.union(v, w);
 					}
 					else throw new RuntimeException("Something went horribly wrong");
 				}
@@ -403,53 +401,14 @@ public class GraphDrawing extends JComponent{
 			}
 
 			MST.add(nextEdge);
-			union(unionFind, v,w);
+			unionFind.union(v,w);
 			return recursiveCallMST(MST, currentCandidates, unionFind, deleted, lowerBound, BABoptimized);
 		}
 		
 		return recursiveCallMST(MST, currentCandidates, unionFind, deleted, lowerBound, BABoptimized);
 	}
 
-
-	//Union-Find functionality
 	
-	/**
-	 * Initializes a union find data structure for a number of entities equal to the size of the pointset. Entities are initialized to -1.
-	 * @return Union find data structure
-	 */
-	private int[] initializeUnionFind() {
-		int[] unionFind = new int[this.size];
-		for (int i = 0; i < unionFind.length; i++) {
-			unionFind[i] = -1;
-		}
-		return unionFind;
-	}
-	
-	/**
-	 * Retrieves the group representative for an entity in a union find data structure
-	 * @param parents A unit find data structure
-	 * @param child Index of an entity in the unit find data structure
-	 * @return Index of the entitie's group representative
-	 */
-	private static int getRepresentative(int[] parents, int child) {
-		if (parents[child] == -1) {
-			return child;
-		}
-		return getRepresentative(parents, parents[child]);
-	}
-	
-	/**
-	 * Adds a new relation between to entities in a unit find data structure
-	 * @param parents A unit find data structure
-	 * @param src The first entity for the added relation
-	 * @param dest The second entity for the added relation
-	 */
-	private static void union(int[] parents, int src, int dest) {
-		int rep1 = getRepresentative(parents, src);
-		int rep2 = getRepresentative(parents, dest);
-		parents[rep1] = rep2;
-	}
-
 	/**
 	 * Computes a y-monotone path on the pointset
 	 * @return The weight of a y-monotone path on the pointset
